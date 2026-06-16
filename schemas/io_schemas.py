@@ -26,5 +26,5 @@ class RLExperience(BaseModel):
     response: TargetResponse
     reward: RewardSignal
     
-    prefix_tensor: list[int] | None = Field(default=None, description="Token IDs of the prefix")
-    log_probs: list[float] | None = Field(default=None, description="Log probabilities of generated tokens")
+    prefix_ids: list[int] = Field(default_factory=list, description="Token IDs of the prefix")
+    log_probs: list[float] = Field(default_factory=list, description="Log probabilities of generated tokens")
