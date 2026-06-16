@@ -6,8 +6,7 @@ import consts
 class RLAgentPolicy:
     def __init__(self, weights_dir: str = consts.AGENT_MODEL_PATH):
         """
-        Initializes the base RL Agent Policy model completely offline.
-        Binds it to the Apple Silicon MPS backend.
+        Initializes the RL Agent Policy model offline via Apple Silicon MPS.
         """
         self.tokenizer = AutoTokenizer.from_pretrained(
             weights_dir, 
@@ -24,10 +23,32 @@ class RLAgentPolicy:
             dtype=torch.float16
         ).to("mps")
 
-    def generate_prefix(self, prompt: str, max_new_tokens: int = 10) -> str:
+    def generate_prefix_greedy(self, prompt: str, max_new_tokens: int = 10) -> str:
         """
-        A basic inference generation pass. 
-        During training, this will be swapped for a batched token sampling step.
+        INFERENCE MODE: Deterministic, greedy generation.
+        Used for testing the model's absolute best guess after training.
+        Returns only the generated string.
+        """
+        inputs = self.tokenizer(prompt, return_tensors="pt").to("mps")
+        input_length = inputs["input_ids"].shape[1]
+
+        with torch.no_grad():
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=max_new_tokens,
+                pad_token_id=self.tokenizer.pad_token_id,
+                eos_token_id=self.tokenizer.eos_token_id,
+                do_sample=False
+            )
+            
+        generated_tokens = outputs[0][input_length:]
+        return self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+
+    def generate_training_rollouts(self, prompt: str, group_size: int = 4, max_new_tokens: int = 10) -> list[dict]:
+        """
+        TRAINING MODE: Stochastic exploration for GRPO.
+        Generates a group of G distinct completions for the same prompt.
+        Returns the text, the token IDs, and the log probabilities needed for RL math.
         """
         inputs = self.tokenizer(prompt, return_tensors="pt").to("mps")
         input_length = inputs["input_ids"].shape[1]
@@ -39,8 +60,26 @@ class RLAgentPolicy:
                 pad_token_id=self.tokenizer.pad_token_id,
                 eos_token_id=self.tokenizer.eos_token_id,
                 do_sample=True,
-                temperature=0.7
+                temperature=0.7,
+                num_return_sequences=group_size, 
+                return_dict_in_generate=True,
+                output_scores=True
             )
-            
-        generated_tokens = outputs[0][input_length:]
-        return self.tokenizer.decode(generated_tokens, skip_special_tokens=True).strip()
+
+        transition_scores = self.model.compute_transition_scores(
+            outputs.sequences, outputs.scores, normalize_logits=True
+        )
+
+        rollouts = []
+        for i in range(group_size):
+            gen_tokens = outputs.sequences[i][input_length:]
+            gen_log_probs = transition_scores[i]
+            gen_text = self.tokenizer.decode(gen_tokens, skip_special_tokens=True).strip()
+
+            rollouts.append({
+                "text": gen_text,
+                "prefix_ids": gen_tokens.tolist(),
+                "log_probs": gen_log_probs.tolist()
+            })
+
+        return rollouts
