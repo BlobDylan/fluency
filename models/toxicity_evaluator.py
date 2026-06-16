@@ -13,7 +13,7 @@ class ToxicityEvaluator:
         self.model = AutoModelForSequenceClassification.from_pretrained(
             weights_dir,
             local_files_only=True,
-            torch_dtype=torch.float16
+            dtype=torch.float16
         ).to("mps")
         
         self.model.eval()
