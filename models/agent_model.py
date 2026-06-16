@@ -18,7 +18,6 @@ class RLAgentPolicy:
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        print("Loading Qwen2.5-0.5B Agent Policy into Apple Silicon VRAM...")
         self.model: Any = AutoModelForCausalLM.from_pretrained(
             weights_dir,
             local_files_only=True,

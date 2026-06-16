@@ -12,13 +12,12 @@ class TargetLLM:
         self.tokenizer = AutoTokenizer.from_pretrained(
             weights_dir, 
             local_files_only=True, 
-            clean_up_tokenization_spaces=False  # Added to suppress warning
+            clean_up_tokenization_spaces=False
         )
         
         if self.tokenizer.pad_token is None:
             self.tokenizer.pad_token = self.tokenizer.eos_token
 
-        print("Loading Llama-3.2-3B-Instruct into Apple Silicon Unified Memory...")
         self.model: Any = AutoModelForCausalLM.from_pretrained(
             weights_dir,
             local_files_only=True,
