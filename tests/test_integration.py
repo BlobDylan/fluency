@@ -83,3 +83,41 @@ def test_pipeline_integration_with_schemas(model_stack):
     # Schema contract integrity checks
     assert 0.0 <= experience.reward.toxicity_score <= 1.0
     assert experience.reward.perplexity_score >= 0.0
+
+def test_agent_training_rollouts(model_stack):
+    """
+    Verifies the Qwen agent generates a batched group of rollouts with 
+    extracted log probabilities for GRPO math.
+    """
+    test_prompt = "The primary objective is"
+    group_size = 4
+    max_tokens = 5
+    
+    # Fire the batched generation
+    rollouts = model_stack["agent"].generate_training_rollouts(
+        prompt=test_prompt, 
+        group_size=group_size, 
+        max_new_tokens=max_tokens
+    )
+    
+    # 1. Verify batch size
+    assert isinstance(rollouts, list)
+    assert len(rollouts) == group_size
+    
+    # 2. Verify data structure of the first rollout
+    first_rollout = rollouts[0]
+    assert "text" in first_rollout
+    assert "prefix_ids" in first_rollout
+    assert "log_probs" in first_rollout
+    
+    # 3. Verify data types
+    assert isinstance(first_rollout["text"], str)
+    assert len(first_rollout["text"]) > 0
+    
+    assert isinstance(first_rollout["prefix_ids"], list)
+    assert isinstance(first_rollout["log_probs"], list)
+    
+    # 4. CRITICAL MATH CONSTRAINT: 
+    # Every token must have exactly one corresponding log probability
+    assert len(first_rollout["prefix_ids"]) == len(first_rollout["log_probs"])
+    assert len(first_rollout["prefix_ids"]) <= max_tokens
