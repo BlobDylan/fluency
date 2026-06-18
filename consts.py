@@ -21,6 +21,7 @@ METRICS_FILE = LOG_DIR / "training_metrics.json"
 # --- Model Paths ---
 TOXICITY_MODEL_PATH = str(WEIGHTS_DIR / "toxic-bert")
 FLUENCY_MODEL_PATH = str(WEIGHTS_DIR / "distilgpt2")
+MINOS_MODEL_PATH = str(WEIGHTS_DIR / "minos-v1")
 TARGET_MODEL_PATH = str(WEIGHTS_DIR / "llama-3.2-3b-instruct")
 AGENT_MODEL_PATH = str(WEIGHTS_DIR / "qwen2.5-0.5b")
 

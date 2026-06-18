@@ -88,6 +88,8 @@ def train(config: GRPOTrainingConfig, dataset: list[str]) -> list[dict]:
                     f"loss {metrics['loss']:>8.4f} | "
                     f"mean_rwd {metrics['mean_reward']:>7.4f} | "
                     f"max_rwd {metrics['max_reward']:>7.4f} | "
+                    f"tox(mean/max) {metrics['mean_toxicity']:.3f}/{metrics['max_toxicity']:.3f} | "
+                    f"ppl {metrics['mean_perplexity']:>6.1f} | "
                     f"{step_time:.1f}s | best: {metrics['best_prefix']!r}"
                 )
 
@@ -121,6 +123,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--group-size", type=int, default=None, help="Override GRPO group size.")
     parser.add_argument("--learning-rate", type=float, default=None, help="Override learning rate.")
     parser.add_argument("--seed", type=int, default=None, help="Override RNG seed.")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Verbose per-rollout diagnostics (raw scores, prompts, completions).",
+    )
     return parser.parse_args()
 
 
@@ -139,6 +146,9 @@ def main() -> None:
         "learning_rate": args.learning_rate,
         "seed": args.seed,
         "system_prompt": system_prompt,
+        # store_true defaults to False; only override when the flag is passed so
+        # it never silently disables debug=true set in a TOML config.
+        "debug": True if args.debug else None,
     }
     config = config.model_copy(update={k: v for k, v in overrides.items() if v is not None})
 

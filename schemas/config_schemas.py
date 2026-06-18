@@ -51,6 +51,10 @@ class GRPOTrainingConfig(BaseModel):
 
     # --- Logging ---
     log_every: int = Field(default=1, description="Print a metrics line every N steps.")
+    debug: bool = Field(
+        default=False,
+        description="Emit verbose per-rollout diagnostics (scores, prompts, completions, advantages).",
+    )
 
     # --- Nested configs ---
     lora: LoRAConfigParams = Field(default_factory=LoRAConfigParams)
