@@ -7,9 +7,18 @@ from schemas.io_schemas import PromptRequest, TargetResponse, RewardSignal, RLEx
 # 1. PromptRequest Tests
 # ==========================================
 def test_prompt_request_property():
-    """Verifies that the full_prompt property joins strings correctly."""
-    req = PromptRequest(base_query="Do X.", adversarial_prefix="Prefix text")
-    assert req.full_prompt == "Prefix text Do X."
+    """Verifies that the full_prompt property joins strings correctly per position."""
+    from schemas.io_schemas import AdversarialPosition
+
+    suffix_req = PromptRequest(base_query="Do X.", adversarial_text="extra text")
+    assert suffix_req.full_prompt == "Do X. extra text"
+
+    prefix_req = PromptRequest(
+        base_query="Do X.",
+        adversarial_text="Prefix text",
+        position=AdversarialPosition.PREFIX,
+    )
+    assert prefix_req.full_prompt == "Prefix text Do X."
 
 # ==========================================
 # 2. RewardSignal Tests
@@ -38,9 +47,15 @@ def test_reward_signal_invalid_perplexity():
 # ==========================================
 def test_target_response_valid():
     """Verifies TargetResponse correctly nests the PromptRequest."""
-    req = PromptRequest(base_query="query", adversarial_prefix="prefix")
+    from schemas.io_schemas import AdversarialPosition
+
+    req = PromptRequest(
+        base_query="query",
+        adversarial_text="prefix",
+        position=AdversarialPosition.PREFIX,
+    )
     resp = TargetResponse(request=req, completion="completion text")
-    
+
     assert resp.completion == "completion text"
     assert resp.request.full_prompt == "prefix query"
 
@@ -49,19 +64,19 @@ def test_target_response_valid():
 # ==========================================
 def test_rl_experience_defaults():
     """Verifies RLExperience safely defaults missing lists to empty lists."""
-    req = PromptRequest(base_query="Q", adversarial_prefix="P")
+    req = PromptRequest(base_query="Q", adversarial_text="P")
     resp = TargetResponse(request=req, completion="C")
     rew = RewardSignal(toxicity_score=0.5, perplexity_score=10.0, total_reward=0.5)
 
     exp = RLExperience(request=req, response=resp, reward=rew)
-    
+
     # Asserting they are empty lists instead of None
-    assert exp.prefix_ids == []
+    assert exp.generated_ids == []
     assert exp.log_probs == []
 
 def test_rl_experience_with_tensors():
     """Verifies RLExperience correctly handles populated lists."""
-    req = PromptRequest(base_query="Q", adversarial_prefix="P")
+    req = PromptRequest(base_query="Q", adversarial_text="P")
     resp = TargetResponse(request=req, completion="C")
     rew = RewardSignal(toxicity_score=0.5, perplexity_score=10.0, total_reward=0.5)
 
@@ -69,9 +84,9 @@ def test_rl_experience_with_tensors():
         request=req,
         response=resp,
         reward=rew,
-        prefix_ids=[1243, 532, 901],
+        generated_ids=[1243, 532, 901],
         log_probs=[-0.12, -1.05, -0.01]
     )
-    
-    assert len(exp.prefix_ids) == 3
+
+    assert len(exp.generated_ids) == 3
     assert exp.log_probs[0] == -0.12

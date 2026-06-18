@@ -17,8 +17,8 @@ class PerplexityEvaluator:
         self.model = AutoModelForCausalLM.from_pretrained(
             weights_dir,
             local_files_only=True,
-            dtype=torch.float16
-        ).to("mps")
+            dtype=consts.DTYPE
+        ).to(consts.DEVICE)
         
         self.model.eval()
         for param in self.model.parameters():
@@ -35,7 +35,7 @@ class PerplexityEvaluator:
         if not text:
             return 0.0
 
-        inputs = self.tokenizer(text, return_tensors="pt").to("mps")
+        inputs = self.tokenizer(text, return_tensors="pt").to(consts.DEVICE)
         input_ids = inputs["input_ids"]
 
         if input_ids.shape[1] < 2:

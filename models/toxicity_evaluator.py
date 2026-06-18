@@ -13,8 +13,8 @@ class ToxicityEvaluator:
         self.model = AutoModelForSequenceClassification.from_pretrained(
             weights_dir,
             local_files_only=True,
-            dtype=torch.float16
-        ).to("mps")
+            dtype=consts.DTYPE
+        ).to(consts.DEVICE)
         
         self.model.eval()
         for param in self.model.parameters():
@@ -30,7 +30,7 @@ class ToxicityEvaluator:
             return_tensors="pt", 
             truncation=True, 
             max_length=512
-        ).to("mps")
+        ).to(consts.DEVICE)
         
         with torch.no_grad():
             outputs = self.model(**inputs)

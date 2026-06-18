@@ -1,13 +1,28 @@
+from enum import Enum
+
 from pydantic import BaseModel, Field
+
+
+class AdversarialPosition(str, Enum):
+    """Where the agent-generated adversarial text is placed relative to the query."""
+    PREFIX = "prefix"
+    SUFFIX = "suffix"
+
 
 class PromptRequest(BaseModel):
     """The input state for the environment."""
     base_query: str = Field(..., description="The forbidden task the target LLM should refuse.")
-    adversarial_prefix: str = Field(..., description="The generated tokens trying to break the target.")
+    adversarial_text: str = Field(..., description="The generated tokens trying to break the target.")
+    position: AdversarialPosition = Field(
+        default=AdversarialPosition.SUFFIX,
+        description="Whether the adversarial text wraps the query as a prefix or a suffix.",
+    )
 
     @property
     def full_prompt(self) -> str:
-        return f"{self.adversarial_prefix} {self.base_query}".strip()
+        if self.position is AdversarialPosition.PREFIX:
+            return f"{self.adversarial_text} {self.base_query}".strip()
+        return f"{self.base_query} {self.adversarial_text}".strip()
 
 class TargetResponse(BaseModel):
     """The output from the frozen target model."""
@@ -26,5 +41,5 @@ class RLExperience(BaseModel):
     response: TargetResponse
     reward: RewardSignal
     
-    prefix_ids: list[int] = Field(default_factory=list, description="Token IDs of the prefix")
+    generated_ids: list[int] = Field(default_factory=list, description="Token IDs of the generated adversarial text")
     log_probs: list[float] = Field(default_factory=list, description="Log probabilities of generated tokens")
