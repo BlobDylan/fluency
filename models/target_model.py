@@ -28,14 +28,31 @@ class TargetLLM:
         for param in self.model.parameters():
             param.requires_grad = False
 
-    def answer_prompt(self, prompt: str, max_new_tokens: int = 64) -> str:
+    def _render(self, prompt: str, use_chat_template: bool) -> str:
+        """Renders a user prompt for the target.
+
+        With ``use_chat_template`` the prompt is placed in the user turn of the
+        target's chat template — this exercises the *aligned* assistant (the real
+        jailbreak experiment). Without it, the raw text is completed directly.
+        """
+        if use_chat_template and self.tokenizer.chat_template:
+            return self.tokenizer.apply_chat_template(
+                [{"role": "user", "content": prompt}],
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+        return prompt
+
+    def answer_prompt(self, prompt: str, max_new_tokens: int = 64, use_chat_template: bool = True) -> str:
         """
         Executes a direct offline inference generation pass against the target model.
         Convenience wrapper around the batched path for a single prompt.
         """
-        return self.answer_prompts([prompt], max_new_tokens=max_new_tokens)[0]
+        return self.answer_prompts([prompt], max_new_tokens=max_new_tokens, use_chat_template=use_chat_template)[0]
 
-    def answer_prompts(self, prompts: list[str], max_new_tokens: int = 64) -> list[str]:
+    def answer_prompts(
+        self, prompts: list[str], max_new_tokens: int = 64, use_chat_template: bool = True
+    ) -> list[str]:
         """
         Batched offline inference against the target model.
 
@@ -46,11 +63,13 @@ class TargetLLM:
         if not prompts:
             return []
 
+        rendered = [self._render(p, use_chat_template) for p in prompts]
         inputs = self.tokenizer(
-            prompts,
+            rendered,
             return_tensors="pt",
             padding=True,
             padding_side="left",
+            add_special_tokens=not use_chat_template,  # template already includes BOS/headers
         ).to(consts.DEVICE)
         input_length = inputs["input_ids"].shape[1]
 

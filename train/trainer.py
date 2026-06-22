@@ -19,7 +19,7 @@ import consts
 from models.agent_model import RLAgentPolicy
 from models.perplexity_evaluator import PerplexityEvaluator
 from models.target_model import TargetLLM
-from models.toxicity_evaluator import ToxicityEvaluator
+from models.compliance_evaluator import ComplianceEvaluator
 from schemas.config_schemas import GRPOTrainingConfig
 from train.engine import GRPOEngine
 
@@ -37,9 +37,12 @@ def build_training_stack(config: GRPOTrainingConfig) -> TrainingStack:
     if config.seed is not None:
         torch.manual_seed(config.seed)
 
-    agent = RLAgentPolicy(system_prompt=config.system_prompt)
+    agent = RLAgentPolicy(
+        system_prompt=config.system_prompt,
+        use_chat_template=config.agent_chat_template,
+    )
     target = TargetLLM()
-    toxicity = ToxicityEvaluator()
+    compliance = ComplianceEvaluator()
     perplexity = PerplexityEvaluator()
 
     lora_config = LoraConfig(
@@ -53,7 +56,7 @@ def build_training_stack(config: GRPOTrainingConfig) -> TrainingStack:
     agent.model = get_peft_model(agent.model, lora_config)
     optimizer = torch.optim.AdamW(agent.model.parameters(), lr=config.learning_rate)
 
-    engine = GRPOEngine(agent, target, toxicity, perplexity, optimizer, config)
+    engine = GRPOEngine(agent, target, compliance, perplexity, optimizer, config)
     return TrainingStack(agent=agent, engine=engine, config=config)
 
 
@@ -88,8 +91,9 @@ def train(config: GRPOTrainingConfig, dataset: list[str]) -> list[dict]:
                     f"loss {metrics['loss']:>8.4f} | "
                     f"mean_rwd {metrics['mean_reward']:>7.4f} | "
                     f"max_rwd {metrics['max_reward']:>7.4f} | "
-                    f"tox(mean/max) {metrics['mean_toxicity']:.3f}/{metrics['max_toxicity']:.3f} | "
+                    f"comp(mean/max) {metrics['mean_compliance']:.3f}/{metrics['max_compliance']:.3f} | "
                     f"ppl {metrics['mean_perplexity']:>6.1f} | "
+                    f"kl {metrics['kl']:.3f} | degen {metrics['frac_degenerate']:.2f} | "
                     f"{step_time:.1f}s | best: {metrics['best_prefix']!r}"
                 )
 

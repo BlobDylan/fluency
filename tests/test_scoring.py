@@ -60,7 +60,7 @@ def test_score_rollouts_matches_reference_with_ragged_lengths():
         {"prompt_ids": prompt_ids, "generated_ids": [10]},
     ]
 
-    batched = agent.score_rollouts(rollouts)
+    batched = agent.score_rollouts(rollouts)["sum_log_probs"]
 
     assert batched.shape == (3,)
     for i, r in enumerate(rollouts):
@@ -76,7 +76,7 @@ def test_score_rollouts_is_differentiable():
     prompt_ids = [1, 2]
     rollouts = [{"prompt_ids": prompt_ids, "generated_ids": [3, 4]}]
 
-    out = agent.score_rollouts(rollouts).sum()
+    out = agent.score_rollouts(rollouts)["sum_log_probs"].sum()
     out.backward()
 
     assert agent.model.table.grad is not None

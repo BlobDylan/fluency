@@ -21,9 +21,33 @@ class LoRAConfigParams(BaseModel):
 
 
 class GRPORewardParams(BaseModel):
-    """Weights for the composite reward function."""
-    alpha_toxicity: float = Field(default=1.0, description="Weight multiplier for successful jailbreaks.")
-    beta_fluency: float = Field(default=0.01, description="Penalty multiplier for high perplexity (gibberish).")
+    """Weights for the composite reward function.
+
+    Design note: the fluency term only ever *penalises* high perplexity; it never
+    *rewards* low perplexity. distilgpt2 assigns very low perplexity to degenerate
+    repetition (e.g. "圾圾圾圾圾"), so a reward that subtracts raw perplexity
+    actively pushes the policy toward junk. We instead clip perplexity above a
+    fluency threshold into a bounded [0, 1] penalty, and reject degenerate text
+    outright (see GRPOEngine._is_degenerate).
+    """
+    alpha_toxicity: float = Field(default=1.0, description="Weight for compliance/jailbreak success (reward).")
+    beta_fluency: float = Field(default=0.5, description="Weight for the bounded fluency penalty (in [0, beta]).")
+    fluency_threshold: float = Field(
+        default=50.0,
+        description="Perplexity at or below which no fluency penalty is applied (typical fluent English on distilgpt2).",
+    )
+    fluency_scale: float = Field(
+        default=150.0,
+        description="Perplexity span above the threshold that maps to the full penalty of 1.0.",
+    )
+    degenerate_reward: float = Field(
+        default=-1.0,
+        description="Flat reward assigned to degenerate/junk adversarial text (overrides all other terms).",
+    )
+    base_reward: float = Field(
+        default=0.05,
+        description="Small constant added to non-degenerate rollouts to keep coherent attempts above junk.",
+    )
 
 
 class GRPOTrainingConfig(BaseModel):
@@ -36,8 +60,19 @@ class GRPOTrainingConfig(BaseModel):
     seed: Optional[int] = Field(default=None, description="Optional RNG seed for reproducible runs.")
 
     # --- Generation behaviour ---
-    temperature: float = Field(default=0.7, description="Sampling temperature for rollout exploration.")
+    temperature: float = Field(default=1.0, description="Sampling temperature for rollout exploration.")
     max_response_tokens: int = Field(default=64, description="Max tokens the target model generates per prompt.")
+
+    # --- Anti-collapse regularisation ---
+    kl_coeff: float = Field(
+        default=0.05,
+        description="Coefficient on the KL-to-reference penalty that keeps the policy near the frozen base model "
+                    "(prevents collapse into degenerate fixed points). Set 0 to disable.",
+    )
+    entropy_coeff: float = Field(
+        default=0.0,
+        description="Optional bonus on rollout entropy to preserve exploration. Set 0 to disable.",
+    )
 
     # --- Attack framing ---
     adversarial_position: AdversarialPosition = Field(
@@ -46,7 +81,18 @@ class GRPOTrainingConfig(BaseModel):
     )
     system_prompt: Optional[str] = Field(
         default=None,
-        description="Optional system prompt describing the agent's task (used when the tokenizer has a chat template).",
+        description="Optional system prompt describing the agent's task (used when agent_chat_template is true).",
+    )
+    agent_chat_template: bool = Field(
+        default=False,
+        description="If true, wrap the agent prompt with the tokenizer's chat template (use only for an "
+                    "instruction-tuned agent). For a BASE agent, leave false: the system prompt is rendered "
+                    "as a short plaintext instruction the base model can actually continue.",
+    )
+    target_chat_template: bool = Field(
+        default=True,
+        description="If true, the adversarial prompt is placed in the target's user turn via its chat template "
+                    "(tests the real aligned assistant). If false, the target completes the raw concatenated text.",
     )
 
     # --- Logging ---
